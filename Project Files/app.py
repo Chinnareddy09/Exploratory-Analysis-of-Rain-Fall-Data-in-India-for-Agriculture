@@ -1,4 +1,3 @@
-import os
 from flask import Flask, request, render_template
 import numpy as np
 import pickle
@@ -6,12 +5,9 @@ import pandas as pd
 
 app = Flask(__name__)
 
-# Get the directory of the current script
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# Load model and scaler using absolute paths
-model = pickle.load(open(os.path.join(BASE_DIR, 'Rainfall.pkl'), 'rb'))
-scale = pickle.load(open(os.path.join(BASE_DIR, 'scale.pkl'), 'rb'))
+# Load the saved model and scaler
+model = pickle.load(open('Rainfall.pkl', 'rb'))
+scale = pickle.load(open('scale.pkl', 'rb'))
 
 @app.route('/')
 def home():
@@ -19,31 +15,30 @@ def home():
 
 @app.route('/predict', methods=['POST'])
 def predict():
-    try:
-        feature_names = [
-            'Location', 'MinTemp', 'MaxTemp', 'Rainfall', 'WindGustSpeed',
-            'WindSpeed9am', 'WindSpeed3pm', 'Humidity9am', 'Humidity3pm',
-            'Pressure9am', 'Pressure3pm', 'Temp9am', 'Temp3pm', 'RainToday',
-            'WindGustDir', 'WindDir9am', 'WindDir3pm', 'year', 'month', 'day'
-        ]
-
-        # Safer way: Pull specifically by name from the form
-        input_data = []
-        for name in feature_names:
-            val = request.form.get(name)
-            input_data.append(float(val))
-
-        df_input = pd.DataFrame([input_data], columns=feature_names)
-        
-        # Scale and Predict
-        scaled_input = scale.transform(df_input)
-        prediction = model.predict(scaled_input)
-
-        if prediction[0] == 1:
-            return render_template('chance.html')
+    # Get values from the HTML form
+    input_features = [float(x) for x in request.form.values()]
+    features_array = [np.array(input_features)]
+    
+    # Column names must match exactly what we used in training
+    feature_names = ['Location', 'MinTemp', 'MaxTemp', 'Rainfall', 'WindGustSpeed',
+                     'WindSpeed9am', 'WindSpeed3pm', 'Humidity9am', 'Humidity3pm',
+                     'Pressure9am', 'Pressure3pm', 'Temp9am', 'Temp3pm', 'RainToday',
+                     'WindGustDir', 'WindDir9am', 'WindDir3pm', 'year', 'month', 'day']
+    
+    # Convert to DataFrame
+    df_input = pd.DataFrame(features_array, columns=feature_names)
+    
+    # Scale the input
+    scaled_input = scale.transform(df_input)
+    
+    # Make prediction
+    prediction = model.predict(scaled_input)
+    
+    if prediction[0] == 1:
+        return render_template('chance.html')
+    else:
         return render_template('nochance.html')
 
-    except Exception as e:
-        return f"Error during prediction: {str(e)}", 400
+if __name__ == "__main__":
 
-# No app.run() here for Vercel
+    app.run(debug=True)
